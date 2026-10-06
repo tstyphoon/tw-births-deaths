@@ -68,10 +68,10 @@ def find_cols(d, where):
     }
 
 
-def triples(d):
+def triples(d, start=3):
     """每個區域佔 3 列（計、男、女），名稱只寫在其中一列（合併儲存格）。"""
     sex = d[1].map(lambda v: clean(v) if pd.notna(v) else None)
-    idx = [i for i in d.index[5:] if sex[i] in ("計", "男", "女")]
+    idx = [i for i in d.index[start:] if sex[i] in ("計", "男", "女")]
     if len(idx) % 3:
         raise ValueError(f"性別列數 {len(idx)} 不是 3 的倍數")
     for k in range(0, len(idx), 3):
@@ -118,9 +118,38 @@ def parse_cumulative(path, sheet):
     return out
 
 
+def parse_pop_sheet(path, sheet):
+    """月底現住人口（按性別及單一年齡）：只取「總計」欄，回傳每個區域的 (計, 男, 女) 人口。"""
+    where = f"{path.name}/{sheet}"
+    d = pd.read_excel(path, sheet_name=sheet, header=None)
+    m = re.search(r"(\d+)年\s*(\d+)月", " ".join(str(v) for v in d.iloc[1].dropna()))
+    if not m:
+        raise ValueError(f"{where}: 找不到月份標題")
+    col = next((i for i, v in d.iloc[2].items() if pd.notna(v) and clean(v) == "總計"), None)
+    if col is None:
+        raise ValueError(f"{where}: 表頭找不到「總計」欄")
+    recs = []
+    for label, (t, ma, fe) in triples(d):
+        recs.append(dict(year_roc=int(m.group(1)), month=int(m.group(2)), region_raw=label, region=ALIAS.get(label, label),
+                         pop_total=num(d.at[t, col], where), pop_male=num(d.at[ma, col], where), pop_female=num(d.at[fe, col], where)))
+    return recs
+
+
+def parse_official_rates(path, sheet):
+    """報表附的「全年各縣市出生、死亡人數及比率」：{區域: (出生數, 粗出生率, 死亡數, 粗死亡率)}。"""
+    d = pd.read_excel(path, sheet_name=sheet, header=None)
+    out = {}
+    for i in d.index[4:]:
+        label = clean(d.at[i, 0]) if pd.notna(d.at[i, 0]) else None
+        if label and pd.notna(d.at[i, 1]) and not label.startswith("說明"):
+            out[ALIAS.get(label, label)] = tuple(float(d.at[i, c]) for c in (1, 2, 3, 4))
+    return out
+
+
 def main():
     rows, agg_rows, cum, log = [], [], {}, []
-    files = sorted(RAW.glob("*.xls"), key=lambda p: int(re.search(r"-(\d+)年", p.name).group(1)))
+    official = {}
+    files = sorted(RAW.glob("縣市出生死亡結婚離婚*.xls"), key=lambda p: int(re.search(r"-(\d+)年", p.name).group(1)))
     for f in files:
         fy = int(re.search(r"-(\d+)年", f.name).group(1))
         months = []
@@ -128,8 +157,11 @@ def main():
             if re.search(r"累計|合計", sh):  # 全年累計表，只用來核對
                 cum[fy] = parse_cumulative(f, sh)
                 continue
+            if "出生率" in sh:  # 官方全年比率表，只用來核對人口數算出的比率
+                official[fy] = parse_official_rates(f, sh)
+                continue
             recs = parse_sheet(f, sh)
-            if recs is None:  # 全年出生率等其他表，不處理
+            if recs is None:
                 continue
             if recs[0]["year_roc"] != fy:
                 raise ValueError(f"{f.name}/{sh}: 表內年份 {recs[0]['year_roc']} 和檔名 {fy} 不同")
@@ -140,7 +172,19 @@ def main():
             raise ValueError(f"{f.name}: 月份不連續 {months}")
         log.append(f"民國{fy}年：{len(months)} 個月（1–{months[-1]} 月）")
 
+    # ---------- 人口 ----------
+    pop_rows, pop_agg = [], []
+    for f in sorted(RAW.glob("縣市人口數按性別及年齡*.xls"), key=lambda p: int(re.search(r"-(\d+)年", p.name).group(1))):
+        for sh in pd.ExcelFile(f).sheet_names:
+            for r in parse_pop_sheet(f, sh):
+                (pop_rows if r["region"] in REGIONS else pop_agg).append(r)
+    pop, pop_agg = pd.DataFrame(pop_rows), pd.DataFrame(pop_agg)
+
     df, agg = pd.DataFrame(rows), pd.DataFrame(agg_rows)
+    n0 = len(df)
+    df = df.merge(pop[["year_roc", "month", "region", "pop_total", "pop_male", "pop_female"]],
+                  on=["year_roc", "month", "region"], how="left", validate="one_to_one")
+    assert len(df) == n0 and df.pop_total.notna().all(), "有月份或縣市找不到人口數"
     unknown = set(agg.region) - AGG
     if unknown:
         raise ValueError(f"出現未知的區域名稱：{unknown}")
@@ -148,7 +192,7 @@ def main():
     df["area"] = df.region.map(lambda r: REGIONS[r][0])
     cols = ["year_roc", "year_ad", "month", "region", "area", "region_raw", "births_total", "births_male",
             "births_female", "births_legit", "births_nonlegit", "deaths_total", "deaths_male", "deaths_female",
-            "marriages", "divorces"]
+            "marriages", "divorces", "pop_total", "pop_male", "pop_female"]
     df = df[cols].sort_values(["year_roc", "month", "region"]).reset_index(drop=True)
 
     # ---------- 驗證 ----------
@@ -189,6 +233,40 @@ def main():
         nbad = sum(1 for r, t in c.items() if r in sub.index and tuple(int(x) for x in sub.loc[r]) != tuple(t))
         rep.append(f"[{'OK' if nbad == 0 else '不符'}] 民國{fy}年：各月加總 = 全年累計表（不符 {nbad} 個縣市）")
         bad += nbad
+
+    # 5. 人口：男 + 女 = 計；22 縣市加總 = 全國總計；臺灣省、福建省
+    dpop = df[df.pop_male + df.pop_female != df.pop_total]
+    rep.append(f"[{'OK' if dpop.empty else '不符'}] 人口：男 + 女 = 合計（不符 {len(dpop)} 列）")
+    bad += len(dpop)
+    ptot = pop_agg[pop_agg.region == "總計"].set_index(key)["pop_total"]
+    ps = df.groupby(key)["pop_total"].sum()
+    n = int(((ps - ptot).abs() != 0).sum())
+    rep.append(f"[{'OK' if n == 0 else '不符'}] 人口：22 縣市加總 = 全國總計（不符 {n} 個月）")
+    bad += n
+    for name, members in (("臺灣省", TAIWAN_PROVINCE), ("福建省", FUJIAN)):
+        a = pop_agg[pop_agg.region == name].set_index(key)["pop_total"]
+        sel = df.region.isin(members)
+        if name == "臺灣省":
+            sel |= (df.region == "桃園市") & ((df.year_roc < 103) | ((df.year_roc == 103) & (df.month < 12)))
+        n = int(((df[sel].groupby(key)["pop_total"].sum() - a).abs() != 0).sum())
+        rep.append(f"[{'OK' if n == 0 else '不符'}] 人口：{name} = 轄下縣市加總（不符 {n} 個月）")
+        bad += n
+    # 6. 用人口數算出的全年粗出生率、粗死亡率，對照報表附的官方比率（民國 107–113 年）。
+    #    官方分母是年中人口，這裡用 12 個月底人口的平均，所以允許小誤差。
+    worst = (0.0, "")
+    for fy, off in sorted(official.items()):
+        yr = df[df.year_roc == fy].groupby("region").agg(b=("births_total", "sum"), d=("deaths_total", "sum"), p=("pop_total", "mean"))
+        for r, (ob, ocbr, od, ocdr) in off.items():
+            if r not in yr.index:
+                continue
+            if int(yr.at[r, "b"]) != int(ob) or int(yr.at[r, "d"]) != int(od):
+                rep.append(f"      民國{fy}年 {r}：出生/死亡數與官方表不同（{yr.at[r, 'b']}/{yr.at[r, 'd']} vs {int(ob)}/{int(od)}）"); bad += 1
+            for mine, theirs in ((yr.at[r, "b"] / yr.at[r, "p"] * 1000, ocbr), (yr.at[r, "d"] / yr.at[r, "p"] * 1000, ocdr)):
+                if abs(mine - theirs) > worst[0]:
+                    worst = (abs(mine - theirs), f"民國{fy}年 {r}：我算 {mine:.3f}‰，官方 {theirs:.3f}‰")
+    ok = worst[0] <= 0.1
+    rep.append(f"[{'OK' if ok else '不符'}] 全年粗出生率、粗死亡率 vs 官方比率表（民國 {min(official)}–{max(official)} 年）：最大差 {worst[0]:.3f}‰（{worst[1]}）")
+    bad += 0 if ok else 1
     rep += ["", "全部通過" if bad == 0 else f"共 {bad} 項不符，詳見上方"]
 
     OUT.mkdir(exist_ok=True)

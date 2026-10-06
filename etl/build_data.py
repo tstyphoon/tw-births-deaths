@@ -22,13 +22,13 @@ ri = {r: i for i, r in enumerate(regions)}
 
 rows = [
     [mi[(r.year_roc, r.month)], ri[r.region], r.births_male, r.births_female, r.deaths_male, r.deaths_female,
-     r.marriages, r.divorces]
+     r.marriages, r.divorces, r.pop_total, r.pop_male, r.pop_female]
     for r in df.itertuples()
 ]
 data = {
     "months": months,  # [民國年, 西元年, 月]
     "regions": [{"name": r.region, "area": r.area, "type": r.type} for r in mp.itertuples()],
-    "cols": ["m", "r", "births_male", "births_female", "deaths_male", "deaths_female", "marriages", "divorces"],
+    "cols": ["m", "r", "births_male", "births_female", "deaths_male", "deaths_female", "marriages", "divorces", "pop_total", "pop_male", "pop_female"],
     "rows": rows,
 }
 out = ROOT / "docs" / "data.js"
