@@ -1,0 +1,570 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>臺灣各縣市出生與死亡</title>
+<style>
+:root{
+  --bg:#f4f6f9; --card:#fff; --text:#1c2430; --muted:#667085; --line:#dfe4ec;
+  --accent:#2f6fdb; --accent-soft:#e8f0fd; --warn:#fff4e0; --warn-text:#8a5300;
+  --birth:#2f6fdb; --death:#e8743b; --nat:#19a979;
+  --shadow:0 1px 2px rgba(16,24,40,.06),0 1px 3px rgba(16,24,40,.08);
+}
+@media (prefers-color-scheme: dark){
+  :root{--bg:#10151c; --card:#18202a; --text:#e6eaf0; --muted:#97a2b3; --line:#2b3644;
+    --accent:#5b95f2; --accent-soft:#1f3355; --warn:#3a2c10; --warn-text:#f0c274; --shadow:none;
+    --birth:#5b95f2; --death:#f08a57; --nat:#3cc596}
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);
+  font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans TC","Microsoft JhengHei",sans-serif}
+header.top{padding:20px 16px 4px;max-width:1280px;margin:0 auto}
+header.top h1{margin:0;font-size:22px}
+header.top p{margin:4px 0 0;color:var(--muted);font-size:13px}
+main{max-width:1280px;margin:0 auto;padding:12px 16px 24px}
+.notice{background:var(--warn);color:var(--warn-text);padding:8px 12px;border-radius:8px;margin:0 0 12px;font-size:14px}
+
+.filters{background:var(--card);border-radius:12px;box-shadow:var(--shadow);padding:14px 16px;
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px 18px;margin-bottom:12px}
+.f{min-width:0}
+.f>label,.f>.lab{display:block;font-size:12px;color:var(--muted);margin-bottom:4px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{border:1px solid var(--line);background:transparent;color:var(--text);padding:5px 12px;border-radius:999px;
+  cursor:pointer;font:inherit;font-size:13px}
+.chip[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#fff}
+.chip:focus-visible,.dd-btn:focus-visible,.seg button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.hint{font-size:12px;color:var(--muted);margin:4px 0 0}
+
+.dd{position:relative}
+.dd-btn{width:100%;text-align:left;background:transparent;color:var(--text);border:1px solid var(--line);
+  border-radius:8px;padding:7px 10px;font:inherit;font-size:13px;cursor:pointer;display:flex;justify-content:space-between;gap:8px}
+.dd-btn .val{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dd-btn::after{content:"▾";color:var(--muted)}
+.dd-panel{position:absolute;z-index:20;left:0;right:0;top:calc(100% + 4px);background:var(--card);border:1px solid var(--line);
+  border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.16);padding:8px;display:none;min-width:220px}
+.dd.open .dd-panel{display:block}
+.dd-list{max-height:260px;overflow:auto}
+.dd-list label{display:flex;gap:8px;padding:5px 4px;font-size:13px;cursor:pointer;border-radius:6px;align-items:flex-start}
+.dd-list label:hover{background:var(--accent-soft)}
+.dd-list input{margin-top:3px}
+.dd-actions{display:flex;justify-content:space-between;align-items:center;margin-top:6px;font-size:12px;color:var(--muted)}
+.dd-actions button{background:none;border:0;color:var(--accent);cursor:pointer;font:inherit;padding:2px 4px}
+
+.dual{position:relative;height:28px;margin-top:2px}
+.dual .track,.dual .fill{position:absolute;top:12px;height:4px;border-radius:2px}
+.dual .track{left:0;right:0;background:var(--line)}
+.dual .fill{background:var(--accent)}
+.dual input{position:absolute;left:0;top:0;width:100%;height:28px;margin:0;background:none;pointer-events:none;
+  -webkit-appearance:none;appearance:none}
+.dual input::-webkit-slider-runnable-track{background:transparent}
+.dual input::-moz-range-track{background:transparent}
+.dual input::-webkit-slider-thumb{-webkit-appearance:none;pointer-events:auto;width:18px;height:18px;border-radius:50%;
+  background:var(--card);border:2px solid var(--accent);cursor:grab}
+.dual input::-moz-range-thumb{pointer-events:auto;width:14px;height:14px;border-radius:50%;background:var(--card);
+  border:2px solid var(--accent);cursor:grab}
+.range-val{font-size:13px;font-weight:600;color:var(--text)}
+
+.kpis{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin-bottom:16px}
+.kpi{background:var(--card);border-radius:12px;box-shadow:var(--shadow);padding:10px 14px;min-width:0}
+.kpi .k{font-size:12px;color:var(--muted)}
+.kpi .v{font-size:22px;font-weight:700;line-height:1.3}
+.kpi .u{font-size:12px;color:var(--muted);font-weight:400;margin-left:2px}
+
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;align-items:start}
+.card{background:var(--card);border-radius:12px;box-shadow:var(--shadow);padding:14px 16px;min-width:0}
+.card-h{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:6px}
+.card-h h2{margin:0;font-size:16px}
+.card-h .sub{font-size:12px;color:var(--muted);margin-top:2px}
+.tools{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;flex:none}
+.seg button{background:transparent;border:0;color:var(--muted);padding:4px 10px;font:inherit;font-size:12px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--accent);color:#fff}
+.chart-wrap{position:relative}
+.chart{width:100%;height:340px}
+.empty{position:absolute;inset:0;display:none;align-items:center;justify-content:center;color:var(--muted);font-size:14px;
+  background:var(--card);text-align:center;padding:16px}
+.chart-wrap.is-empty .empty{display:flex}
+.small{font-size:12px;color:var(--muted);margin:6px 0 0}
+.notes{background:var(--card);border-radius:12px;box-shadow:var(--shadow);padding:14px 18px;margin-top:16px;font-size:13px}
+.notes h2{margin:0 0 6px;font-size:15px}
+.notes ul{margin:0;padding-left:20px}
+.notes li{margin:3px 0;color:var(--muted)}
+.notes li b{color:var(--text);font-weight:600}
+footer{max-width:1280px;margin:0 auto;padding:0 16px 32px;color:var(--muted);font-size:13px}
+footer a,.notes a{color:var(--accent)}
+@media (max-width:820px){
+  .grid{grid-template-columns:1fr}
+  .kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .chart{height:300px}
+  header.top h1{font-size:19px}
+  .card-h{flex-direction:column}
+  .tools{justify-content:flex-start}
+}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/echarts/5.5.0/echarts.min.js"></script>
+</head>
+<body>
+<header class="top">
+  <h1>臺灣各縣市出生與死亡</h1>
+  <p>內政部戶政司登記資料，民國 100 年 1 月至 115 年 8 月（西元 2011–2026）。調整上方條件，下方的數字與四張圖會一起更新。</p>
+</header>
+<main>
+  <div id="notice"></div>
+
+  <section class="filters" aria-label="篩選條件">
+    <div class="f"><span class="lab">區域（可多選，沒選＝全部）</span><div class="chips" id="areas"></div></div>
+    <div class="f"><label for="ddRegion-btn">縣市（可多選，沒選＝全部）</label><div class="dd" id="ddRegion"></div></div>
+    <div class="f"><span class="lab">性別（只影響出生數、死亡數）</span><div class="chips" id="genders"></div></div>
+    <div class="f">
+      <span class="lab">年份區間：<span class="range-val" id="yearVal"></span></span>
+      <div class="dual"><div class="track"></div><div class="fill" id="yearFill"></div>
+        <input type="range" id="yLo" aria-label="起始年"><input type="range" id="yHi" aria-label="結束年"></div>
+    </div>
+    <div class="f">
+      <span class="lab">月份區間：<span class="range-val" id="monthVal"></span></span>
+      <div class="dual"><div class="track"></div><div class="fill" id="monthFill"></div>
+        <input type="range" id="mLo" aria-label="起始月"><input type="range" id="mHi" aria-label="結束月"></div>
+    </div>
+    <div class="f"><span class="lab">指標</span><div class="chips" id="inds"></div><p class="hint" id="indHint"></p></div>
+    <div class="f"><span class="lab">顯示方式</span><div class="chips" id="modes"></div></div>
+    <div class="f"><span class="lab">趨勢圖的時間單位</span><div class="chips" id="grans"></div></div>
+  </section>
+
+  <section class="kpis" id="kpis" aria-label="目前條件的合計"></section>
+
+  <div class="grid">
+    <section class="card">
+      <div class="card-h">
+        <div><h2 id="t1">趨勢</h2><div class="sub" id="sub1"></div></div>
+        <div class="seg" data-card="c1"><button data-v="line">折線</button><button data-v="bar">長條</button></div>
+      </div>
+      <div class="chart-wrap" id="w1"><div class="chart" id="c1"></div><div class="empty">目前篩選條件下沒有資料</div></div>
+      <p class="small" id="foot1"></p>
+    </section>
+
+    <section class="card">
+      <div class="card-h">
+        <div><h2>出生與死亡對照</h2><div class="sub">各年合計；自然增減＝出生數－死亡數（不受「指標」與「顯示方式」影響）</div></div>
+        <div class="seg" data-card="c2"><button data-v="bar">長條＋折線</button><button data-v="line">折線</button></div>
+      </div>
+      <div class="chart-wrap" id="w2"><div class="chart" id="c2"></div><div class="empty">目前篩選條件下沒有資料</div></div>
+      <p class="small" id="foot2"></p>
+    </section>
+
+    <section class="card">
+      <div class="card-h">
+        <div><h2 id="t3">各縣市排行</h2><div class="sub" id="sub3"></div></div>
+        <div class="seg" data-card="c3"><button data-v="bar">長條</button><button data-v="scatter">出生 vs 死亡</button></div>
+      </div>
+      <div class="chart-wrap" id="w3"><div class="chart" id="c3"></div><div class="empty">目前篩選條件下沒有資料</div></div>
+      <p class="small">以縣市為單位，不受「顯示方式」影響。數字是人數（對數），沒有除以人口，人口多的縣市本來就比較大，不能直接說誰比較高。散佈圖中，斜線下方的縣市死亡數大於出生數（自然減少）。</p>
+    </section>
+
+    <section class="card">
+      <div class="card-h">
+        <div><h2 id="t4">月份分佈</h2><div class="sub" id="sub4"></div></div>
+        <div class="seg" data-card="c4"><button data-v="bar">長條</button><button data-v="line">折線</button></div>
+      </div>
+      <div class="chart-wrap" id="w4"><div class="chart" id="c4"></div><div class="empty">目前篩選條件下沒有資料</div></div>
+      <p class="small">各月的「每年平均」＝所選年份中該月的合計 ÷ 有該月資料的年數；只受年份區間影響，不受月份區間與「顯示方式」影響。</p>
+    </section>
+  </div>
+
+  <section class="notes">
+    <h2>資料說明與限制</h2>
+    <ul>
+      <li><b>資料來源：</b>內政部戶政司「出生數、死亡數按性別及結、離婚對數按區域別分（按登記日期）」月報，民國 100 年 1 月至 115 年 8 月，共 188 個月、22 個縣市。</li>
+      <li><b>登記日期不是發生日期：</b>統計的是「登記」的件數，延遲登記或假日（如春節）會讓月份之間的高低失真。</li>
+      <li><b>115 年只到 8 月：</b>年度合計若包含 115 年，會比其他年份少；要同期比較，請把月份區間設為 1–8 月。</li>
+      <li><b>沒有人口數：</b>本頁都是人數與對數，不是比率，所以不能比較縣市之間「生育或死亡的程度」，只適合看各縣市自己的變化。</li>
+      <li><b>結婚、離婚是「對數」，</b>報表不分性別，所以不受性別篩選影響；108 年 5 月 24 日起含相同性別結婚。</li>
+      <li><b>縣市整併：</b>桃園縣於 103 年 12 月 25 日改制為桃園市，本頁視為同一個縣市；「區域」（北、中、南、東、離島）是人工分類。</li>
+      <li><b>驗證：</b>各縣市加總與報表的全國總計、臺灣省、福建省，以及 12 個月加總與全年累計表，都已核對相符（<a href="https://github.com/tstyphoon/tw-births-deaths/blob/main/data/validation_report.txt" target="_blank" rel="noopener">驗證報告</a>）。</li>
+    </ul>
+  </section>
+</main>
+<footer>
+  <p>資料來源：內政部戶政司人口統計資料，原始 Excel 檔、ETL 程式與整理後的 CSV 都在
+  <a href="https://github.com/tstyphoon/tw-births-deaths" target="_blank" rel="noopener">GitHub repo</a>，可自由下載。</p>
+</footer>
+
+<script src="data.js"></script>
+<script>
+(function () {
+  'use strict';
+  var notice = document.getElementById('notice');
+  function warn(msg) { var p = document.createElement('p'); p.className = 'notice'; p.textContent = msg; notice.appendChild(p); }
+  var hasData = !!window.BI_DATA, hasChart = typeof window.echarts !== 'undefined';
+  if (!hasData) warn('找不到資料檔 data.js，請確認它和 index.html 放在同一個資料夾。');
+  if (!hasChart) warn('圖表元件（ECharts）載入失敗，請確認網路連線後重新整理頁面。');
+  if (!hasData) return;
+
+  /* ---------- 資料 ---------- */
+  var D = window.BI_DATA, MONTHS = D.months, REG = D.regions;
+  var R = D.rows.map(function (a) {
+    var m = MONTHS[a[0]];
+    return { m: a[0], y: m[0], ad: m[1], mo: m[2], r: a[1], bm: a[2], bf: a[3], dm: a[4], df: a[5], mar: a[6], dv: a[7] };
+  });
+  var YEARS = Array.from(new Set(MONTHS.map(function (m) { return m[0]; }))).sort(function (a, b) { return a - b; });
+  var AD = {}; MONTHS.forEach(function (m) { AD[m[0]] = m[1]; });
+  var AVAIL = {}; MONTHS.forEach(function (m) { AVAIL[m[0]] = Math.max(AVAIL[m[0]] || 0, m[2]); });
+  var AREAS = []; REG.forEach(function (r) { if (AREAS.indexOf(r.area) < 0) AREAS.push(r.area); });
+  var IND = {
+    births: { name: '出生數', unit: '人' }, deaths: { name: '死亡數', unit: '人' }, natural: { name: '自然增減', unit: '人' },
+    marriages: { name: '結婚對數', unit: '對' }, divorces: { name: '離婚對數', unit: '對' }
+  };
+  var C = { birth: '#2f6fdb', death: '#e8743b', nat: '#19a979' };
+  var PALETTE = ['#2f6fdb', '#e8743b', '#19a979', '#a855c7', '#e0b000', '#0fa3b1', '#d94a6b', '#6b7a8f', '#8a5a2b', '#4f9d2d'];
+
+  var st = {
+    areas: new Set(), regions: new Set(), gender: '全部', yLo: 0, yHi: YEARS.length - 1, mLo: 1, mHi: 12,
+    ind: 'births', mode: 'sum', gran: 'year', c1: 'line', c2: 'bar', c3: 'bar', c4: 'bar'
+  };
+
+  function allowedRegions() {
+    var s = new Set();
+    REG.forEach(function (r, i) {
+      if (st.regions.size ? st.regions.has(r.name) : (!st.areas.size || st.areas.has(r.area))) s.add(i);
+    });
+    return s;
+  }
+  var allowed = allowedRegions();
+  function base(r, ignoreMonth) {
+    return r.y >= YEARS[st.yLo] && r.y <= YEARS[st.yHi] && allowed.has(r.r) &&
+      (ignoreMonth || (r.mo >= st.mLo && r.mo <= st.mHi));
+  }
+  function births(r) { return st.gender === '全部' ? r.bm + r.bf : (st.gender === '男' ? r.bm : r.bf); }
+  function deaths(r) { return st.gender === '全部' ? r.dm + r.df : (st.gender === '男' ? r.dm : r.df); }
+  function val(r, ind) {
+    switch (ind) {
+      case 'births': return births(r);
+      case 'deaths': return deaths(r);
+      case 'natural': return births(r) - deaths(r);
+      case 'marriages': return r.mar;
+      default: return r.dv;
+    }
+  }
+  function groupOf(r) {
+    if (st.mode === 'sum') return '合計';
+    return st.regions.size ? REG[r.r].name : REG[r.r].area;
+  }
+  function orderOf(k) {
+    if (k === '合計') return -1;
+    var i = AREAS.indexOf(k); if (i >= 0) return 1000 + i;
+    for (var j = 0; j < REG.length; j++) if (REG[j].name === k) return j;
+    return 9999;
+  }
+  function fmt(n) { return Number(n).toLocaleString('zh-Hant'); }
+  function css(v) { return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
+  function axisStyle() {
+    return { axisLabel: { color: css('--muted') }, axisLine: { lineStyle: { color: css('--line') } },
+      splitLine: { lineStyle: { color: css('--line') } }, nameTextStyle: { color: css('--muted') } };
+  }
+  var charts = {}, lastType = {};
+  function setEmpty(n, e) { document.getElementById('w' + n).classList.toggle('is-empty', e); }
+  function draw(n, opt, type) {
+    var ch = charts[n]; if (!ch) return;
+    opt.textStyle = { fontFamily: 'inherit' };
+    if (lastType[n] !== type) ch.setOption(opt, true);                         // 圖型切換：整份換掉，交給 universalTransition 變形
+    else ch.setOption(opt, { replaceMerge: ['series', 'xAxis', 'yAxis'] });    // 篩選變動：只換資料，平滑過渡
+    lastType[n] = type;
+  }
+  function clearChart(n) { if (charts[n]) { charts[n].clear(); lastType[n] = null; } }
+  function yearLabel(y, partial) { return y + '年' + (partial ? '*' : ''); }
+  function monthLabel(m) { return m[0] + '/' + (m[2] < 10 ? '0' : '') + m[2]; }
+  function unitName(ind) { return IND[ind].name + '（' + IND[ind].unit + '）'; }
+
+  /* ---------- KPI ---------- */
+  function renderKpis() {
+    var t = { births: 0, deaths: 0, marriages: 0, divorces: 0 };
+    R.forEach(function (r) {
+      if (!base(r)) return;
+      t.births += births(r); t.deaths += deaths(r); t.marriages += r.mar; t.divorces += r.dv;
+    });
+    var nat = t.births - t.deaths;
+    var items = [['出生數', t.births, '人', C.birth], ['死亡數', t.deaths, '人', C.death],
+      ['自然增減', nat, '人', nat < 0 ? C.death : C.nat], ['結婚對數', t.marriages, '對', ''], ['離婚對數', t.divorces, '對', '']];
+    var el = document.getElementById('kpis'); el.innerHTML = '';
+    items.forEach(function (it) {
+      var d = document.createElement('div'); d.className = 'kpi';
+      var k = document.createElement('div'); k.className = 'k'; k.textContent = it[0] + '（所選區間合計）';
+      var v = document.createElement('div'); v.className = 'v'; if (it[3]) v.style.color = it[3];
+      v.textContent = (it[1] > 0 && it[0] === '自然增減' ? '+' : '') + fmt(it[1]);
+      var u = document.createElement('span'); u.className = 'u'; u.textContent = it[2]; v.appendChild(u);
+      d.appendChild(k); d.appendChild(v); el.appendChild(d);
+    });
+  }
+
+  /* ---------- 圖 1：趨勢 ---------- */
+  function renderC1() {
+    var ind = st.ind, byYear = st.gran === 'year', map = new Map(), xs = new Map();
+    R.forEach(function (r) {
+      if (!base(r)) return;
+      var k = groupOf(r), x = byYear ? r.y : r.m;
+      xs.set(x, true);
+      var s = map.get(k); if (!s) { s = new Map(); map.set(k, s); }
+      s.set(x, (s.get(x) || 0) + val(r, ind));
+    });
+    document.getElementById('t1').textContent = IND[ind].name + '趨勢';
+    document.getElementById('sub1').textContent = (byYear ? '各年' : '各月') + '，所選年份與月份區間';
+    var foot = document.getElementById('foot1'); foot.textContent = '';
+    setEmpty(1, !map.size);
+    if (!map.size) return clearChart(1);
+    var xk = Array.from(xs.keys()).sort(function (a, b) { return a - b; }), partialYears = [];
+    var labels = xk.map(function (x) {
+      if (!byYear) return monthLabel(MONTHS[x]);
+      var partial = AVAIL[x] < st.mHi; if (partial) partialYears.push(x);
+      return yearLabel(x, partial);
+    });
+    if (partialYears.length) foot.textContent = '* ' + partialYears.join('、') + ' 年只有 1–' + AVAIL[partialYears[0]] + ' 月的資料，比其他年份少；要同期比較請把月份區間設為 1–' + AVAIL[partialYears[0]] + ' 月。';
+    var keys = Array.from(map.keys()).sort(function (a, b) { return orderOf(a) - orderOf(b); });
+    var multi = keys.length > 1, ax = axisStyle(), type = st.c1;
+    var opt = {
+      color: PALETTE, animationDuration: 600, animationDurationUpdate: 600,
+      tooltip: { trigger: 'axis', valueFormatter: function (v) { return v == null ? '–' : fmt(v) + ' ' + IND[ind].unit; } },
+      legend: { show: multi, type: 'scroll', top: 0, textStyle: { color: css('--muted') } },
+      grid: { left: 12, right: 16, top: multi ? 62 : 44, bottom: byYear ? 28 : 56, containLabel: true },
+      xAxis: Object.assign({ type: 'category', data: labels, name: byYear ? '民國年' : '民國年/月', nameLocation: 'end' }, ax, { splitLine: { show: false } }),
+      yAxis: Object.assign({ type: 'value', name: unitName(ind) }, ax),
+      dataZoom: byYear ? [] : [{ type: 'inside' }, { type: 'slider', height: 18, bottom: 8 }],
+      series: keys.map(function (k, i) {
+        var col = k === '合計' ? (ind === 'deaths' ? C.death : ind === 'natural' ? C.nat : C.birth) : PALETTE[i % PALETTE.length];
+        return {
+          id: k, name: k, type: type, universalTransition: true, barMaxWidth: 36, symbolSize: byYear ? 7 : 3,
+          itemStyle: { color: col }, lineStyle: { color: col, width: 2.5 },
+          data: xk.map(function (x) { var v = map.get(k).get(x); return v == null ? null : v; })
+        };
+      })
+    };
+    draw(1, opt, 'c1:' + type + ':' + st.gran);
+  }
+
+  /* ---------- 圖 2：出生 vs 死亡 ---------- */
+  function renderC2() {
+    var map = new Map();
+    R.forEach(function (r) {
+      if (!base(r)) return;
+      var a = map.get(r.y); if (!a) { a = { b: 0, d: 0 }; map.set(r.y, a); }
+      a.b += births(r); a.d += deaths(r);
+    });
+    var foot = document.getElementById('foot2'); foot.textContent = '';
+    setEmpty(2, !map.size);
+    if (!map.size) return clearChart(2);
+    var ys = Array.from(map.keys()).sort(function (a, b) { return a - b; }), partial = [];
+    var labels = ys.map(function (y) { var p = AVAIL[y] < st.mHi; if (p) partial.push(y); return yearLabel(y, p); });
+    if (partial.length) foot.textContent = '* ' + partial.join('、') + ' 年只有 1–' + AVAIL[partial[0]] + ' 月的資料。';
+    var ax = axisStyle(), bar = st.c2 === 'bar';
+    var line = function (c) { return { color: c, width: 2.5 }; };
+    var opt = {
+      color: [C.birth, C.death, C.nat], animationDuration: 600, animationDurationUpdate: 600,
+      tooltip: { trigger: 'axis', valueFormatter: function (v) { return fmt(v) + ' 人'; } },
+      legend: { top: 0, textStyle: { color: css('--muted') } },
+      grid: { left: 12, right: 16, top: 62, bottom: 28, containLabel: true },
+      xAxis: Object.assign({ type: 'category', data: labels, name: '民國年', nameLocation: 'end' }, ax, { splitLine: { show: false } }),
+      yAxis: Object.assign({ type: 'value', name: '人數（人）' }, ax),
+      series: [
+        { id: 'b', name: '出生數', type: bar ? 'bar' : 'line', universalTransition: true, barMaxWidth: 22, itemStyle: { color: C.birth }, lineStyle: line(C.birth),
+          data: ys.map(function (y) { return map.get(y).b; }) },
+        { id: 'd', name: '死亡數', type: bar ? 'bar' : 'line', universalTransition: true, barMaxWidth: 22, itemStyle: { color: C.death }, lineStyle: line(C.death),
+          data: ys.map(function (y) { return map.get(y).d; }) },
+        { id: 'n', name: '自然增減', type: 'line', universalTransition: true, symbolSize: 7, itemStyle: { color: C.nat }, lineStyle: line(C.nat),
+          data: ys.map(function (y) { return map.get(y).b - map.get(y).d; }) }
+      ]
+    };
+    draw(2, opt, 'c2:' + st.c2);
+  }
+
+  /* ---------- 圖 3：縣市排行 ---------- */
+  function renderC3() {
+    var ind = st.ind, acc = new Map();
+    R.forEach(function (r) {
+      if (!base(r)) return;
+      var a = acc.get(r.r); if (!a) { a = { v: 0, b: 0, d: 0 }; acc.set(r.r, a); }
+      a.v += val(r, ind); a.b += births(r); a.d += deaths(r);
+    });
+    var rows = Array.from(acc.entries()).map(function (e) { return { n: REG[e[0]].name, v: e[1].v, b: e[1].b, d: e[1].d }; });
+    document.getElementById('t3').textContent = '各縣市' + IND[ind].name;
+    document.getElementById('sub3').textContent = st.c3 === 'bar' ? '所選年份與月份區間合計，高到低' : '每個點是一個縣市，所選區間合計';
+    setEmpty(3, !rows.length);
+    var el = document.getElementById('c3');
+    if (!rows.length) return clearChart(3);
+    var ax = axisStyle(), opt;
+    el.style.height = (st.c3 === 'bar' ? Math.max(300, rows.length * 24 + 50) : 440) + 'px';
+    charts[3].resize();
+    if (st.c3 === 'bar') {
+      rows.sort(function (a, b) { return b.v - a.v; });
+      opt = {
+        animationDuration: 600, animationDurationUpdate: 600,
+        tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' }, valueFormatter: function (v) { return fmt(v) + ' ' + IND[ind].unit; } },
+        grid: { left: 12, right: 64, top: 12, bottom: 36, containLabel: true },
+        xAxis: Object.assign({ type: 'value', name: unitName(ind), nameLocation: 'middle', nameGap: 28 }, ax),
+        yAxis: Object.assign({ type: 'category', inverse: true, data: rows.map(function (r) { return r.n; }) }, ax,
+          { splitLine: { show: false }, axisLabel: { color: css('--text'), interval: 0 } }),
+        series: [{
+          id: 'reg', type: 'bar', barMaxWidth: 16, universalTransition: true,
+          label: { show: true, position: 'right', color: css('--muted'), formatter: function (p) { return fmt(p.value); } },
+          data: rows.map(function (r) { return { id: r.n, name: r.n, value: r.v, itemStyle: { color: r.v < 0 ? C.death : C.birth } }; })
+        }]
+      };
+    } else {
+      var mx = Math.max.apply(null, rows.map(function (r) { return Math.max(r.b, r.d); })) * 1.08 || 1;
+      opt = {
+        animationDuration: 600, animationDurationUpdate: 600,
+        tooltip: { trigger: 'item', formatter: function (p) {
+          var v = p.value; return p.name + '<br/>出生數：' + fmt(v[0]) + ' 人<br/>死亡數：' + fmt(v[1]) + ' 人<br/>自然增減：' + (v[0] - v[1] > 0 ? '+' : '') + fmt(v[0] - v[1]) + ' 人'; } },
+        grid: { left: 12, right: 24, top: 32, bottom: 36, containLabel: true },
+        xAxis: Object.assign({ type: 'value', name: '出生數（人）', nameLocation: 'middle', nameGap: 30, max: mx }, ax),
+        yAxis: Object.assign({ type: 'value', name: '死亡數（人）', max: mx }, ax),
+        series: [{
+          id: 'reg', type: 'scatter', universalTransition: true, symbolSize: 12,
+          itemStyle: { color: C.birth, opacity: 0.75 },
+          label: { show: true, position: 'right', color: css('--muted'), fontSize: 10, formatter: function (p) { return p.name; } },
+          labelLayout: { hideOverlap: true },
+          markLine: { silent: true, symbol: 'none', animation: false, lineStyle: { color: css('--muted'), type: 'dashed' },
+            label: { formatter: '出生＝死亡', color: css('--muted') }, data: [[{ coord: [0, 0] }, { coord: [mx, mx] }]] },
+          data: rows.map(function (r) { return { id: r.n, name: r.n, value: [r.b, r.d] }; })
+        }]
+      };
+    }
+    draw(3, opt, 'c3:' + st.c3);
+  }
+
+  /* ---------- 圖 4：月份分佈 ---------- */
+  function renderC4() {
+    var ind = st.ind, sum = new Array(13).fill(0), yrs = []; for (var i = 0; i < 13; i++) yrs.push(new Set());
+    R.forEach(function (r) {
+      if (!base(r, true)) return;
+      sum[r.mo] += val(r, ind); yrs[r.mo].add(r.y);
+    });
+    document.getElementById('t4').textContent = IND[ind].name + '的月份分佈';
+    document.getElementById('sub4').textContent = '各月的每年平均，所選年份區間';
+    var data = [], has = false;
+    for (var m = 1; m <= 12; m++) { var n = yrs[m].size; data.push(n ? Math.round(sum[m] / n) : null); if (n) has = true; }
+    setEmpty(4, !has);
+    if (!has) return clearChart(4);
+    var ax = axisStyle(), col = ind === 'deaths' ? C.death : ind === 'natural' ? C.nat : C.birth, type = st.c4;
+    var opt = {
+      animationDuration: 600, animationDurationUpdate: 600,
+      tooltip: { trigger: 'axis', valueFormatter: function (v) { return v == null ? '–' : fmt(v) + ' ' + IND[ind].unit; } },
+      grid: { left: 12, right: 16, top: 44, bottom: 28, containLabel: true },
+      xAxis: Object.assign({ type: 'category', data: ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'] }, ax, { splitLine: { show: false } }),
+      yAxis: Object.assign({ type: 'value', name: '每年平均（' + IND[ind].unit + '）' }, ax),
+      series: [{ id: 'month', name: IND[ind].name, type: type, universalTransition: true, barMaxWidth: 28, symbolSize: 7,
+        itemStyle: { color: col }, lineStyle: { color: col, width: 2.5 }, data: data }]
+    };
+    draw(4, opt, 'c4:' + type);
+  }
+
+  var raf = 0;
+  function renderAll() {
+    clearTimeout(raf);
+    raf = setTimeout(function () {
+      allowed = allowedRegions();
+      document.getElementById('indHint').textContent = (st.ind === 'marriages' || st.ind === 'divorces') ? '結婚、離婚不分性別，不受性別篩選影響。' : '';
+      renderKpis();
+      if (!hasChart) return;
+      renderC1(); renderC2(); renderC3(); renderC4();
+    }, 16);
+  }
+
+  /* ---------- 篩選列 ---------- */
+  function chipGroup(id, items, isOn, onClick) {
+    var root = document.getElementById(id);
+    function paint() { Array.from(root.children).forEach(function (b) { b.setAttribute('aria-pressed', isOn(b.dataset.v)); }); }
+    items.forEach(function (it) {
+      var b = document.createElement('button'); b.type = 'button'; b.className = 'chip'; b.dataset.v = it[0]; b.textContent = it[1];
+      b.addEventListener('click', function () { onClick(it[0]); paint(); renderAll(); });
+      root.appendChild(b);
+    });
+    paint();
+    return paint;
+  }
+  var ddRegion;
+  var paintAreas = chipGroup('areas', AREAS.map(function (a) { return [a, a]; }),
+    function (v) { return st.areas.has(v); },
+    function (v) {
+      if (st.areas.has(v)) st.areas.delete(v); else st.areas.add(v);
+      var ok = new Set(regionOptions().map(function (o) { return o.value; }));
+      Array.from(st.regions).forEach(function (r) { if (!ok.has(r)) st.regions.delete(r); });
+      ddRegion.refresh();
+    });
+  chipGroup('genders', [['全部', '全部'], ['男', '男'], ['女', '女']], function (v) { return st.gender === v; }, function (v) { st.gender = v; });
+  chipGroup('inds', Object.keys(IND).map(function (k) { return [k, IND[k].name]; }), function (v) { return st.ind === v; }, function (v) { st.ind = v; });
+  chipGroup('modes', [['sum', '合計'], ['split', '分開比較']], function (v) { return st.mode === v; }, function (v) { st.mode = v; });
+  chipGroup('grans', [['year', '按年'], ['month', '按月']], function (v) { return st.gran === v; }, function (v) { st.gran = v; });
+
+  function regionOptions() {
+    return REG.filter(function (r) { return !st.areas.size || st.areas.has(r.area); }).map(function (r) { return { value: r.name, text: r.name + '（' + r.area + '）' }; });
+  }
+  (function () {
+    var root = document.getElementById('ddRegion');
+    root.innerHTML = '<button type="button" class="dd-btn" id="ddRegion-btn" aria-haspopup="listbox"><span class="val"></span></button>' +
+      '<div class="dd-panel"><div class="dd-list"></div><div class="dd-actions"><span class="cnt"></span><button type="button" class="clr">清除選取</button></div></div>';
+    var btn = root.querySelector('.dd-btn'), val = root.querySelector('.val'), list = root.querySelector('.dd-list'), cnt = root.querySelector('.cnt');
+    function label() { var n = st.regions.size; val.textContent = n === 0 ? '全部' : (n === 1 ? Array.from(st.regions)[0] : '已選 ' + n + ' 個縣市'); }
+    function fill() {
+      list.innerHTML = '';
+      regionOptions().forEach(function (o) {
+        var lb = document.createElement('label'), cb = document.createElement('input'), sp = document.createElement('span');
+        cb.type = 'checkbox'; cb.checked = st.regions.has(o.value); sp.textContent = o.text;
+        cb.addEventListener('change', function () {
+          if (cb.checked) st.regions.add(o.value); else st.regions.delete(o.value);
+          label(); cnt.textContent = '已選 ' + st.regions.size + ' 項'; renderAll();
+        });
+        lb.appendChild(cb); lb.appendChild(sp); list.appendChild(lb);
+      });
+      cnt.textContent = '已選 ' + st.regions.size + ' 項';
+    }
+    btn.addEventListener('click', function () { var open = !root.classList.contains('open'); root.classList.toggle('open', open); if (open) fill(); });
+    root.querySelector('.clr').addEventListener('click', function () { st.regions.clear(); label(); fill(); renderAll(); });
+    document.addEventListener('click', function (e) { if (!root.contains(e.target)) root.classList.remove('open'); });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') root.classList.remove('open'); });
+    ddRegion = { refresh: function () { label(); if (root.classList.contains('open')) fill(); } };
+    label();
+  })();
+
+  function dual(loId, hiId, fillId, valId, min, max, keyLo, keyHi, text) {
+    var lo = document.getElementById(loId), hi = document.getElementById(hiId), fillEl = document.getElementById(fillId);
+    lo.min = hi.min = min; lo.max = hi.max = max; lo.step = hi.step = 1; lo.value = st[keyLo]; hi.value = st[keyHi];
+    function paint() {
+      var span = (max - min) || 1;
+      document.getElementById(valId).textContent = text(st[keyLo], st[keyHi]);
+      fillEl.style.left = ((st[keyLo] - min) / span * 100) + '%'; fillEl.style.right = (100 - (st[keyHi] - min) / span * 100) + '%';
+      lo.style.zIndex = (st[keyLo] - min) >= span - 1 ? 3 : 2; hi.style.zIndex = 2;
+    }
+    lo.addEventListener('input', function () { st[keyLo] = Math.min(+lo.value, st[keyHi]); lo.value = st[keyLo]; paint(); renderAll(); });
+    hi.addEventListener('input', function () { st[keyHi] = Math.max(+hi.value, st[keyLo]); hi.value = st[keyHi]; paint(); renderAll(); });
+    paint();
+  }
+  dual('yLo', 'yHi', 'yearFill', 'yearVal', 0, YEARS.length - 1, 'yLo', 'yHi', function (a, b) {
+    var f = function (i) { return '民國' + YEARS[i] + '年（' + AD[YEARS[i]] + '）'; };
+    return a === b ? f(a) : f(a) + ' 至 ' + f(b);
+  });
+  dual('mLo', 'mHi', 'monthFill', 'monthVal', 1, 12, 'mLo', 'mHi', function (a, b) { return a === b ? a + ' 月' : a + ' 至 ' + b + ' 月'; });
+
+  document.querySelectorAll('.seg').forEach(function (seg) {
+    var key = seg.dataset.card;
+    function paint() { seg.querySelectorAll('button').forEach(function (b) { b.setAttribute('aria-pressed', st[key] === b.dataset.v); }); }
+    seg.querySelectorAll('button').forEach(function (b) { b.addEventListener('click', function () { st[key] = b.dataset.v; paint(); renderAll(); }); });
+    paint();
+  });
+
+  /* ---------- 啟動 ---------- */
+  if (hasChart) {
+    [1, 2, 3, 4].forEach(function (n) {
+      var el = document.getElementById('c' + n);
+      charts[n] = echarts.init(el);
+      if (window.ResizeObserver) new ResizeObserver(function () { charts[n].resize(); }).observe(el);
+    });
+    window.addEventListener('resize', function () { Object.keys(charts).forEach(function (n) { charts[n].resize(); }); });
+    if (window.matchMedia) {
+      var mq = window.matchMedia('(prefers-color-scheme: dark)');
+      if (mq.addEventListener) mq.addEventListener('change', function () { lastType = {}; renderAll(); });
+    }
+  }
+  renderAll();
+})();
+</script>
+</body>
+</html>
