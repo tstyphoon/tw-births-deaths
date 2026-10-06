@@ -255,6 +255,7 @@ footer a,.notes a{color:var(--accent)}
     for (var j = 0; j < REG.length; j++) if (REG[j].name === k) return j;
     return 9999;
   }
+  function wan(v) { return Math.abs(v) >= 10000 ? (v / 10000) + '萬' : String(v); }
   function fmt(n) { return Number(n).toLocaleString('zh-Hant'); }
   function css(v) { return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
   function axisStyle() {
@@ -271,6 +272,15 @@ footer a,.notes a{color:var(--accent)}
     lastType[n] = type;
   }
   function clearChart(n) { if (charts[n]) { charts[n].clear(); lastType[n] = null; } }
+  /* 資料不足全年的點：折線用空心菱形加標籤，長條用淡色虛線外框，避免被誤讀成真的暴跌 */
+  function pt(v, partial, y, col, type, showLabel) {
+    if (v == null) return null;
+    if (!partial) return v;
+    var tag = '僅1–' + AVAIL[y] + '月';
+    if (type === 'bar') return { value: v, itemStyle: { color: col, opacity: 0.4, borderColor: col, borderType: 'dashed', borderWidth: 1.5 } };
+    return { value: v, symbol: 'diamond', symbolSize: 11, itemStyle: { color: css('--card'), borderColor: col, borderWidth: 2 },
+      label: showLabel ? { show: true, position: 'top', distance: 12, color: col, fontSize: 11, formatter: tag } : { show: false } };
+  }
   function yearLabel(y, partial) { return y + '年' + (partial ? '*' : ''); }
   function monthLabel(m) { return m[0] + '/' + (m[2] < 10 ? '0' : '') + m[2]; }
   function unitName(ind) { return IND[ind].name + '（' + IND[ind].unit + '）'; }
@@ -317,7 +327,7 @@ footer a,.notes a{color:var(--accent)}
       var partial = AVAIL[x] < st.mHi; if (partial) partialYears.push(x);
       return yearLabel(x, partial);
     });
-    if (partialYears.length) foot.textContent = '* ' + partialYears.join('、') + ' 年只有 1–' + AVAIL[partialYears[0]] + ' 月的資料，比其他年份少；要同期比較請把月份區間設為 1–' + AVAIL[partialYears[0]] + ' 月。';
+    if (partialYears.length) foot.textContent = '* ' + partialYears.join('、') + ' 年只有 1–' + AVAIL[partialYears[0]] + ' 月的資料，比其他年份少；要同期比較請把月份區間設為 1–' + AVAIL[partialYears[0]] + ' 月。圖上以空心菱形標示。';
     var keys = Array.from(map.keys()).sort(function (a, b) { return orderOf(a) - orderOf(b); });
     var multi = keys.length > 1, ax = axisStyle(), type = st.c1;
     var opt = {
@@ -333,7 +343,10 @@ footer a,.notes a{color:var(--accent)}
         return {
           id: k, name: k, type: type, universalTransition: true, barMaxWidth: 36, symbolSize: byYear ? 7 : 3,
           itemStyle: { color: col }, lineStyle: { color: col, width: 2.5 },
-          data: xk.map(function (x) { var v = map.get(k).get(x); return v == null ? null : v; })
+          data: xk.map(function (x) {
+            var v = map.get(k).get(x);
+            return byYear ? pt(v, AVAIL[x] < st.mHi, x, col, type, i === 0) : (v == null ? null : v);
+          })
         };
       })
     };
@@ -353,7 +366,7 @@ footer a,.notes a{color:var(--accent)}
     if (!map.size) return clearChart(2);
     var ys = Array.from(map.keys()).sort(function (a, b) { return a - b; }), partial = [];
     var labels = ys.map(function (y) { var p = AVAIL[y] < st.mHi; if (p) partial.push(y); return yearLabel(y, p); });
-    if (partial.length) foot.textContent = '* ' + partial.join('、') + ' 年只有 1–' + AVAIL[partial[0]] + ' 月的資料。';
+    if (partial.length) foot.textContent = '* ' + partial.join('、') + ' 年只有 1–' + AVAIL[partial[0]] + ' 月的資料（圖上以空心標記或淡色虛線外框表示），不能和全年比較。';
     var ax = axisStyle(), bar = st.c2 === 'bar';
     var line = function (c) { return { color: c, width: 2.5 }; };
     var opt = {
@@ -365,11 +378,11 @@ footer a,.notes a{color:var(--accent)}
       yAxis: Object.assign({ type: 'value', name: '人數（人）' }, ax),
       series: [
         { id: 'b', name: '出生數', type: bar ? 'bar' : 'line', universalTransition: true, barMaxWidth: 22, itemStyle: { color: C.birth }, lineStyle: line(C.birth),
-          data: ys.map(function (y) { return map.get(y).b; }) },
+          data: ys.map(function (y) { return pt(map.get(y).b, AVAIL[y] < st.mHi, y, C.birth, bar ? 'bar' : 'line', true); }) },
         { id: 'd', name: '死亡數', type: bar ? 'bar' : 'line', universalTransition: true, barMaxWidth: 22, itemStyle: { color: C.death }, lineStyle: line(C.death),
-          data: ys.map(function (y) { return map.get(y).d; }) },
+          data: ys.map(function (y) { return pt(map.get(y).d, AVAIL[y] < st.mHi, y, C.death, bar ? 'bar' : 'line', false); }) },
         { id: 'n', name: '自然增減', type: 'line', universalTransition: true, symbolSize: 7, itemStyle: { color: C.nat }, lineStyle: line(C.nat),
-          data: ys.map(function (y) { return map.get(y).b - map.get(y).d; }) }
+          data: ys.map(function (y) { return pt(map.get(y).b - map.get(y).d, AVAIL[y] < st.mHi, y, C.nat, 'line', false); }) }
       ]
     };
     draw(2, opt, 'c2:' + st.c2);
@@ -398,7 +411,8 @@ footer a,.notes a{color:var(--accent)}
         animationDuration: 600, animationDurationUpdate: 600,
         tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' }, valueFormatter: function (v) { return fmt(v) + ' ' + IND[ind].unit; } },
         grid: { left: 12, right: 64, top: 12, bottom: 36, containLabel: true },
-        xAxis: Object.assign({ type: 'value', name: unitName(ind), nameLocation: 'middle', nameGap: 28 }, ax),
+        xAxis: Object.assign({ type: 'value', name: unitName(ind), nameLocation: 'middle', nameGap: 28,
+          splitNumber: el.clientWidth < 520 ? 3 : 5 }, ax, { axisLabel: { color: css('--muted'), formatter: wan } }),
         yAxis: Object.assign({ type: 'category', inverse: true, data: rows.map(function (r) { return r.n; }) }, ax,
           { splitLine: { show: false }, axisLabel: { color: css('--text'), interval: 0 } }),
         series: [{
@@ -414,8 +428,10 @@ footer a,.notes a{color:var(--accent)}
         tooltip: { trigger: 'item', formatter: function (p) {
           var v = p.value; return p.name + '<br/>出生數：' + fmt(v[0]) + ' 人<br/>死亡數：' + fmt(v[1]) + ' 人<br/>自然增減：' + (v[0] - v[1] > 0 ? '+' : '') + fmt(v[0] - v[1]) + ' 人'; } },
         grid: { left: 12, right: 24, top: 32, bottom: 36, containLabel: true },
-        xAxis: Object.assign({ type: 'value', name: '出生數（人）', nameLocation: 'middle', nameGap: 30, max: mx }, ax),
-        yAxis: Object.assign({ type: 'value', name: '死亡數（人）', max: mx }, ax),
+        xAxis: Object.assign({ type: 'value', name: '出生數（人）', nameLocation: 'middle', nameGap: 30, max: mx,
+          splitNumber: el.clientWidth < 520 ? 3 : 5 }, ax, { axisLabel: { color: css('--muted'), formatter: wan } }),
+        yAxis: Object.assign({ type: 'value', name: '死亡數（人）', max: mx, splitNumber: el.clientWidth < 520 ? 3 : 5 }, ax,
+          { axisLabel: { color: css('--muted'), formatter: wan } }),
         series: [{
           id: 'reg', type: 'scatter', universalTransition: true, symbolSize: 12,
           itemStyle: { color: C.birth, opacity: 0.75 },
